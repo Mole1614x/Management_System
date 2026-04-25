@@ -1,0 +1,153 @@
+import sqlite3
+
+# Database
+conn = sqlite3.connect("lms.db", isolation_level=None)
+cursor = conn.cursor()
+
+# create command for table books and issued_books
+
+cursor.execute("create table if not exists books(book_id integer primary key autoincrement, title text, author text, is_available integer)")
+
+cursor.execute("create table if not exists issued_books(issued_id integer primary key autoincrement, book_id integer, user_name text, issue_date text, return_date text, FOREIGN KEY(book_id) REFERENCES books(book_id))")
+
+
+# Testing purpose 
+
+cursor.execute("delete from books")
+cursor.execute("delete from sqlite_sequence where name = 'books'")
+cursor.execute("delete from issued_books")
+cursor.execute("delete from sqlite_sequence where name = 'issued_books'")
+
+# data to insert
+data = [
+    ("Harry Potter and the Philosopher's Stone", "J.K. Rowling", 1),
+    ("The Monk Who Sold His Ferrari", "Robin Sharma", 1),
+    ("Man's Search for Meaning", "Viktor E. Frankl", 1),
+    ("The White Tiger", "Aravind Adiga", 1),
+    ("Journey to the End of the Earth", "Tishani Doshi", 1),
+    ("Rich Dad Poor Dad", "Robert T. Kiyosaki", 1),
+    ("Solo Leveling Volume 1", "Mappa", 1)
+]
+
+# Insert data in books
+
+cursor.executemany("insert into books(title,author,edition,price) values(?,?,?,?)", data)
+print("Records updated Successfully!")
+
+
+# Insert data in issued_books
+
+
+
+# View
+cursor.execute("select * from books")
+record = cursor.fetchall()
+for row in record:
+    print(row)
+
+
+class Book:
+
+    def __init__(self,title,author,is_available):
+        self.title = title
+        self.author = author
+        self.is_available = is_available
+
+    def __str__(self):
+        return f"|Title: {self.title}| Author: {self.author}| Availability: {self.is_available}"
+    
+class Library:
+
+    @staticmethod
+    def add_book():
+
+        title = input("Enter the title:")
+        author = input("Enter the author:")
+        is_available = 1
+        cursor.execute("insert into books(title,author,is_avaible) values (?,?,?)",(title,author,is_available))
+
+        print("Record updated Successfully!")
+
+    @staticmethod
+    def view_book():
+
+        cursor.execute("select * from books")
+        record = cursor.fetchall()
+        for row in record:
+            print(row)
+
+    @staticmethod
+    def issue_book():
+
+        book_id = int(input("Enter the book_id:"))
+        user_name = input("Enter the username:")
+
+        cursor.execute("select is_available from books where book_id = ?",(book_id,))
+
+        if book_id not in issued_books:
+            print("Book hasn't issued yet!")
+        else:
+            from datetime import datetime
+            issue_date = datetime.now().date()
+            return_date = "7 days later"
+
+            cursor.execute("insert into issued_books(book_id,user_name,issue_date,return_date) values(?,?,?,?)",(book_id,user_name,issue_date,return_date))
+
+
+        cursor.execute("update books set is_available = 0 where book_id = ?",(book_id,))
+
+
+    @staticmethod
+    def return_book():
+
+        book_id = int(input("Enter the book_id:"))
+
+        cursor.execute("update issued_books set return_date = CURRENT_DATE where book_id = ? AND return_date is null", book_id)
+
+        cursor.execute("update books set is_available = 1 where book_id = ?",book_id)
+
+
+    @staticmethod
+    def view_available():
+        
+        cursor.execute("Select * from books where is_available = 1")
+        avail = cursor.fetchall()
+        print(f"The Available books are: {avail}")
+
+    @staticmethod
+    def view_issued():
+
+        cursor.execute("select * from issued_books where return_date IS NULL")
+        print(f" The issued Books are: {cursor.fetchall()}")
+
+def main():
+    #b = Book("","","","")
+    while True:
+
+        print("------------- LIBRARY MENU ---------------")
+        print("1. Add Books")
+        print("2. View All Books")
+        print("3. Issue Book")
+        print("4. Return Book")
+        print("5. View Available Books")
+        print("6. View Issued Books")
+        print("7. Exit")
+
+        ch = int(input("Enter your choice:"))
+
+        if ch == 1: Library.add_book()
+        elif ch == 2: Library.view_book()
+        elif ch == 3: Library.issue_book()
+        elif ch == 4: Library.return_book()
+        elif ch == 5: Library.view_available()
+        elif ch == 6: Library.view_issued()
+        elif ch == 7: Library.export_file()
+        elif ch == 8: Library.import_file()
+        elif ch == 9: 
+            print("Thank you for Visiting....") 
+            break
+        else:
+            print("Invalid Choice!")
+
+if __name__ == "__main__":
+    main()

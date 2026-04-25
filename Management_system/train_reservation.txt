@@ -1,0 +1,208 @@
+#----------------------------- Imports --------------------------------#
+import sqlite3
+import csv 
+import json
+from datetime import date
+
+#------------------------------- Database ------------------------------#
+conn = sqlite3.connect("train.db",isolation_level=None)
+cursor = conn.cursor()
+
+#-------------------------------- Table Creation -----------------------#
+cursor.execute("create table if not exists users(user_id integer primary key autoincrement, username text, password text)")
+
+cursor.execute("create table if not exists trains(train_id integer primary key autoincrement, train_name text, source text, destination text, total_seats integer, available_seats integer)")
+
+cursor.execute("create table if not exists reservations(reservation_id integer primary key autoincrement,user_id integer, train_id integer, passenger_name text, seats_booked integer, status text, FOREIGN KEY(user_id) REFERENCES users(user_id), FOREIGN KEY(train_id) REFERENCES trains(train_id))")
+
+#-------------------- Table Deletion for testing purpose ----------------#
+cursor.execute("delete from users")
+cursor.execute("delete from trains")
+cursor.execute("delete from reservations")
+cursor.execute("delete from sqllite_sequence where name = 'users'")
+cursor.execute("delete from sqllite_sequence where name = 'trains'")
+cursor.execute("delete from sqllite_sequence where name = 'reservations'")
+
+
+#------------------------- Class Structure --------------------------------#
+
+class Train:
+    def __init__(self,train_name,source,destination,total_seats,available_seats):
+        self.train_name = train_name
+        self.source = source
+        self.destination = destination 
+        self.total_seats = total_seats
+        self.available_seats = available_seats
+
+    def __str__(self):
+        return f"|TRAIN_NAME: {self.train_name}| Source: {self.source}| Destination: {self.destination}| Total_seats: {self.total_seats}| Available_seasts: {self.available_seats}|"
+    
+class Passanger:
+    def __init__(self,name,age,gender):
+        self.name = name
+        self.age = age
+        self.gender = gender
+
+    def __str__(self):
+        return f"|Name: {self.name}| Age: {self.age}| Gender: {self.gender}|"
+    
+class ReservationSystem:
+
+    @staticmethod
+    def add_trains():
+
+        t_name = input("Enter Train Name:").strip().capitalize()
+        source = input("Enter Source Station:").capitalize().strip()
+        destination = input("Enter Destination Station:").capitalize().strip()
+        total_seats = 25
+        available_seats = total_seats
+
+        cursor.execute("insert into trains(train_name, source, destination, total_seats, available_seats) values(?,?,?,?,?)",(t_name,source,destination,total_seats,available_seats))
+
+        print("Train has been added!")
+
+    @staticmethod
+    def view_trains():
+
+        cursor.execute("select * from trains")
+        rows = cursor.fetchall()
+
+        for row in rows:
+            print(row)
+
+    @staticmethod
+    def add_Passanger():
+        name = input("Enter your name:")
+        age = int(input("Enter your age:"))
+        gender = input("Enter your gender(M/F/O):")
+
+        # FIXED (table + column name)
+        cursor.execute("insert into reservations(user_id, train_id, passenger_name, seats_booked, status) values(NULL,NULL,?,?,?)",(name,1,"BOOKED"))  
+        print("Data has been updated!")
+
+    @staticmethod
+    def book_Ticket(availavble_seats):
+        train_id = int(input("Enter your train id:"))
+        passenger_id = int(input("Enter your passenger id:"))
+        seats_booked = int(input("Enter the no of selected seats:"))
+
+        cursor.execute("select available_seats from trains where train_id = ?",(train_id,))
+        result = cursor.fetchone()
+        
+        if result and result[0] >= seats_booked :
+
+            cursor.execute("insert into reservations(train_id,passenger_id,seats_booked,booking_date,status) values(?,?,?,CURRENT_DATE,'BOOKED')",(train_id,passenger_id,seats_booked))
+
+            print("Your Seat has been booked!")
+
+            print(cursor.fetchone())
+
+            cursor.execute("update trains set available_seats = available_seats - ? where train_id = ?",(train_id,))
+        
+
+    @staticmethod
+    def cancel_ticket():
+        reservation_id = int(input("Enter your reservation id:"))
+
+        cursor.execute("select train_id , seats_booked from reservtions where reservation_id = ?",(reservation_id,))
+
+        cursor.execute("update reservations set status = 'CANCELLED' where reservaion_id = ? ")
+
+        print("Your Reservation has been cancelled!")
+
+        cursor.execute("update trains set available_seats = available_seats + ? where train_id = ? ")
+
+    @staticmethod
+    def view_reservations():
+
+        cursor.execute("Select * from reservations")
+        rows = cursor.fetchall()
+
+        for row in rows:
+            print(row)
+
+    @staticmethod
+    def export_import_csv():
+
+        print("\n1.Export CSV \n2.Import CSV")
+        ch = int(input("Enter your choice:"))
+
+        if ch == 1:
+            try:
+
+                cursor.execute("select * from trains")
+                rows = cursor.fetchall()
+
+                with open("trains.csv","w",newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["train_id","train_name","source","destination","total_seats","available_seats"])
+                    writer.writerows(rows)
+                print("Data has been exported to csv format!")
+            
+            except Exception as e:
+                print("Error:",e)
+
+        elif ch == 2:
+
+            try:
+
+                with open("trains.csv","r") as f:
+                    reader = csv.reader(f)
+                    next(reader)
+
+                    for row in reader:
+                        cursor.execute("insert into trains(train_name, source, destination, total_seats, available_seats) values(?,?,?,?)",(row[1],row[2],row[3],row[4],row[5]))
+                    
+                    print("Data has been imported successfully!")
+            except Exception as e:
+                print("Error:",e)
+        else:
+            print("Invalid choice!")
+
+    @staticmethod
+    def export_import_json():
+
+        print("\n1.Export JSON \n2.Import JSON")
+        ch = int(input("Enter your choice:"))  
+
+        if ch == 1:
+
+            try:
+
+                cursor.execute("Select * from trains")
+                rows = cursor.fetchall()
+
+                data = []
+                for row in rows:
+                    data.append({
+                        "train_id": row[1],
+                        "train_name": row[2],
+                        "source" row[3],
+                        "destination": row[4],
+                        "total_seats": row[5]
+
+                    })
+
+                with open("trains.json","w") as f:
+                    json.dump(data,f,indent=4)
+                print("Data has been succesfully exported")
+
+            except Exception as e:
+                print("Error:",e)
+
+        elif ch == 2:
+
+            try:
+                with open("trains.json","r") as f:
+                    rows = json.load(f)
+
+                for row in rows:
+                    cursor.execute(
+                        "insert into orders(user_id,product_id,quantity,order_date) values(?,?,?,?)",
+                        (row["train_id"], row["train_name"], row["source"], row["destination"], row["total_seats"])
+                    )
+
+                print("Records imported successfully!")
+        
+            except Exception as e:
+                print("Error:",e)

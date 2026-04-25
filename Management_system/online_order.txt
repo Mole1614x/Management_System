@@ -1,0 +1,228 @@
+import sqlite3
+import csv
+import json
+from datetime import date
+
+conn = sqlite3.connect("order.db", isolation_level=None)
+cursor = conn.cursor()
+cursor.execute("PRAGMA foreign_keys = ON")
+
+# create table 
+
+cursor.execute("create table if not exists users(user_id integer primary key autoincrement, username text, password text)")
+
+cursor.execute("create table if not exists products(product_id integer primary key autoincrement, product_name text, price real, stock integer)")
+
+cursor.execute("create table if not exists orders(order_id integer primary key autoincrement, user_id integer, product_id integer, quantity integer, order_date text, FOREIGN KEY(user_id) REFERENCES users(user_id),FOREIGN KEY(product_id) REFERENCES products(product_id))")
+
+# delete table Testing purpose
+
+cursor.execute("delete from users")
+cursor.execute("delete from sqlite_sequence where name = 'users'")
+
+cursor.execute("delete from products")
+cursor.execute("delete from sqlite_sequence where name = 'products'")
+
+cursor.execute("delete from orders")
+cursor.execute("delete from sqlite_sequence where name = 'orders'")
+
+# class structure
+
+class Users:
+    def __init__(self,username,password):
+        self.username = username
+        self.password = password
+
+    def __str__(self):
+        return f"|Username: {self.username} | Password: {self.password} |"
+    
+class Product:
+    def __init__(self,product_name,price,stock):
+        self.product_name = product_name
+        self.price = price
+        self.stock = stock
+
+    def __str__(self):
+        return f"|Product_Name: {self.product_name}| Price: {self.price}| Stock: {self.stock}|"
+
+
+class OrderSystem:
+
+    @staticmethod
+    def register_user():
+
+        username = input("Enter username:")
+        password = input("Enter Password:")
+        cursor.execute("select * from users where username = ?",(username,))
+        if cursor.fetchone():
+            print("username already exists!")
+        else:
+            cursor.execute("insert into users(username,password) values (?,?)",(username,password))
+            print("Registration successful")
+        
+    @staticmethod
+    def login_user():
+        username = input("Enter username:")
+        password = input("Enter password:")
+
+        cursor.execute("select user_id from users where username=? AND password = ?",(username,password))
+        user = cursor.fetchone()
+
+        if user:
+            print("Login Successful!")
+            return user[0]
+        else:
+            print("Invlaid Credentials!")
+            return None
+        
+    @staticmethod
+    def add_product():
+        product_name = input("Enter your product_name:")
+        price = input("Enter your price:")
+        stock = int(input("Enter your stock:"))
+
+        cursor.execute("insert into products(product_name,price,stock) values(?,?,?)",(product_name,price,stock))
+        print("Product inserted Successfully!")
+
+    @staticmethod
+    def view_products():
+        cursor.execute("select * from products")
+        rows = cursor.fetchall()
+        print("Records Fetched Successfully!")
+        for row in rows:
+            print(row)
+
+    @staticmethod
+    def place_order():
+        user_id = int(input("Enter your user id:"))
+        product_id = int(input("Enter your product id:"))
+        quantity = int(input("Enter quantity of product:"))
+
+        cursor.execute("select stock from products where product_id = ?", (product_id,))
+        stock = cursor.fetchone()
+        if stock and stock[0] >= quantity:
+            
+            cursor.execute("insert into orders(user_id,product_id,quantity,order_date) values(?,?,?,CURRENT_DATE)",(user_id,product_id,quantity))
+
+            cursor.execute("update products set stock = stock - ? where product_id = ?",(quantity,product_id))
+            print("Order Placed Successfully!")
+
+        else:
+
+            print("Unable to order product!")
+
+    @staticmethod
+    def view_order():
+
+        user_id = int(input("Enter your user id:"))
+
+        cursor.execute("select * from orders where user_id = ?", (user_id,))
+        print("Order details Fetched!")
+
+        rows = cursor.fetchall()
+
+        for row in rows:
+            print(row)
+
+    @staticmethod
+    def export_import_csv():
+
+        print("1.Export CSV \n2.Import CSV")
+        ch = int(input("Enter your choice:"))
+
+        if ch == 1:
+            try:
+                cursor.execute("select * from orders")
+                rows = cursor.fetchall()
+
+                with open("orders.csv","w") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["order_id","user_id","product_id","quantity","order_date"])
+                    writer.writerows(rows)
+                    print("Records exported to csv succcessfully!")
+
+            except Exception as e:
+                print("Error:",e)
+
+        elif ch == 2:
+
+            try:
+
+                with open("orders.csv","r") as f:
+                    reader = csv.reader(f)
+                    next(reader) # skip header
+
+                    for row in reader:
+                        cursor.execute("insert into order(user_id,product_id,quantity,order_date) values(?,?,?,?)",(row[1],row[2],row[3],rows[4]))
+                    print("Record imported successfully!")
+                
+            except Exception as e:
+                print("Error:",e)
+
+    @staticmethod
+    def export_import_json():
+        print("1.Export JSON \n2.Import JSON")
+        ch = int(input("Enter your choice:"))
+
+        if ch == 1:
+            try:
+                cursor.execute("select * from orders")
+                rows = cursor.fetchall()
+
+                data = []
+                for row in rows:
+                    data.append({
+                        "user_id":row[1],
+                        "product_id":row[2],
+                        "quantity":row[3],
+                        "order_date":row[4]
+                    })
+
+                with open("orders.json","w") as f:
+                    json.dump(data,f,indent=4)
+                print("Records exported successfully!")
+            except Exception as e:
+                print("Error:",e)
+        
+        elif ch == 2:
+
+            try:
+                with open("orders.json","r") as f:
+                    rows = json.load(f)
+                
+                for row in rows:
+                    cursor.execute("insert into orders(user_id,product_id,quantity,order_date) values(?,?,?,?)",(row["user_id"], row["product_id"], row["quantity"], row["order_date"]))
+
+                print("Records imported successfully!")
+        
+            except Exception as e:
+                print("Error:",e)
+
+def main():
+    
+    user_id = None
+
+    while True:
+
+        print("\n1.Register User \n2.Login User \n3.Add Product \n4.View Products \n5.Place Order \n6. View Order History \n7.export csv \n8. import csv \n9. Export Json \n10. Import Json \n11.Exit")
+
+        ch = int(input("Enter your choice:"))
+
+        if ch == 1:OrderSystem.register_user()
+        elif ch == 2:user_id=OrderSystem.login_user()
+        elif ch == 3:OrderSystem.add_product()
+        elif ch == 4:OrderSystem.view_products()
+        elif ch == 5:OrderSystem.place_order()
+        elif ch == 6:OrderSystem.view_order()
+        elif ch == 7:OrderSystem .export_import_csv()
+        elif ch == 8: OrderSystem.export_import_json()
+        elif ch == 9: 
+            print("Exit...")   
+            break
+        else:
+            print("Invalid Choice!")
+    
+if __name__ == "__main__":
+    main()
+
+
